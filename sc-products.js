@@ -19,6 +19,11 @@
     return;
   }
 
+  if (scUser?.isGuest) {
+    const notice = document.getElementById("guestNotice");
+    if (notice) notice.style.display = "block";
+  }
+
   const fallbackProducts = [
     {
       id: 1,
@@ -205,6 +210,13 @@
   };
 
   const openConfirmModal = (product, imageSrc) => {
+    if (scUser?.isGuest) {
+      if (confirm("You are browsing as a Guest. To add items to your cart, please register or log in.\n\nGo to registration now?")) {
+        window.location.href = "sc-register.html";
+      }
+      return;
+    }
+
     if (!confirmModal || !product) {
       addToCart(product, 1);
       showCartToast(product, 1);

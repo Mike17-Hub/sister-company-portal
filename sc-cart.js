@@ -443,7 +443,7 @@
       return;
     }
 
-    const username = String(approverEls.username?.value || "").trim();
+    const username = String(approverEls.username?.value || "").trim().toLowerCase();
     const password = String(approverEls.password?.value || "");
 
     if (!username || !password) {
@@ -462,7 +462,7 @@
       }
 
       const rpcClient = typeof supabaseClient?.schema === "function" ? supabaseClient.schema("public") : supabaseClient;
-      const { data, error } = await rpcClient.rpc("place_sc_order_approved", {
+      const { data, error } = await rpcClient.rpc("place_sc_order_gemini", {
         p_store_id: pendingOrder.storeId,
         p_items: itemsPayload,
         p_approver_username: username,
@@ -470,7 +470,9 @@
       });
 
       if (error) {
-        setApproverMessage(error.message || "Invalid approver credentials.", "error");
+        const dbErrorMessage = error.message || "Invalid approver credentials.";
+        const dbErrorDetails = error.details ? ` Details: ${error.details}` : "";
+        setApproverMessage(`${dbErrorMessage}${dbErrorDetails}`, "error");
         return;
       }
 

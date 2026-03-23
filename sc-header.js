@@ -100,4 +100,11 @@
   };
 
   relocateStoreBadge();
+
+  // Guest Restrictions: Hide Dashboard, Cart, Orders
+  const scUser = getScUser();
+  if (scUser?.isGuest) {
+    const restrictedLinks = document.querySelectorAll('nav.sc-products-nav a[href="sc-dashboard.html"], nav.sc-products-nav a[href="sc-cart.html"], nav.sc-products-nav a[href="sc-orders.html"]');
+    restrictedLinks.forEach(el => el.style.display = 'none');
+  }
 })();

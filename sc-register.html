@@ -14,7 +14,7 @@
 <script src="js/supabase.js"></script>
 </head>
 
-<body class="sc-products-body">
+<body class="sc-products-body" data-allow-guest="true">
 
 <header class="sc-products-header">
   <div class="sc-header-brand">
@@ -157,7 +157,7 @@
 
 <div class="sc-register-actions">
   <button type="submit">Register</button>
-  <a class="sc-link" href="index.html">Already Registered? Login</a>
+  <button type="button" id="backToLoginBtn" class="sc-btn sc-btn-ghost">Back to Login</button>
 </div>
 
 </form>

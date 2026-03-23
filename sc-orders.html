@@ -93,6 +93,21 @@
 <div class="container">
   <h2>My Orders</h2>
 
+  <div class="sc-orders-filters" style="display: flex; gap: 1rem; align-items: flex-end; margin-bottom: 1.5rem; flex-wrap: wrap;">
+    <div class="sc-field">
+      <label for="startDate" style="font-size: 0.85rem; color: #94A3B8; font-weight: 600;">Start Date</label>
+      <input type="date" id="startDate" style="background: #111419; border: 1px solid #334155; color: #E2E8F0; padding: 0.6rem; border-radius: 8px; min-width: 140px;">
+    </div>
+    <div class="sc-field">
+      <label for="endDate" style="font-size: 0.85rem; color: #94A3B8; font-weight: 600;">End Date</label>
+      <input type="date" id="endDate" style="background: #111419; border: 1px solid #334155; color: #E2E8F0; padding: 0.6rem; border-radius: 8px; min-width: 140px;">
+    </div>
+    <div style="display: flex; gap: 0.5rem;">
+      <button id="filterOrdersBtn" class="sc-btn sc-btn-secondary" type="button">Filter</button>
+      <button id="resetOrdersBtn" class="sc-btn sc-btn-ghost" type="button">Reset</button>
+    </div>
+  </div>
+
   <div class="table-container">
     <table>
       <thead>

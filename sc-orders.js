@@ -59,7 +59,8 @@ const detailsModal = {
     title: null,
     meta: null,
     total: null,
-    reorderBtn: null
+    reorderBtn: null,
+    stepper: null
 };
 
 const buildDetailsModal = () => {
@@ -79,6 +80,7 @@ const buildDetailsModal = () => {
             <span aria-hidden="true">&times;</span>
           </button>
         </div>
+        <div class="sc-order-stepper" id="scOrderStepper"></div>
         <div class="sc-order-details-list"></div>
         <div class="sc-order-details-total">
           <span>Total</span>
@@ -98,6 +100,7 @@ const buildDetailsModal = () => {
     detailsModal.meta = modal.querySelector(".sc-order-details-meta");
     detailsModal.total = modal.querySelector(".sc-order-details-total-value");
     detailsModal.reorderBtn = modal.querySelector(".sc-order-details-reorder");
+    detailsModal.stepper = modal.querySelector("#scOrderStepper");
 
     const close = () => closeDetailsModal();
     detailsModal.closeBtn?.addEventListener("click", close);
@@ -148,6 +151,42 @@ const reorderItems = () => {
     window.location.href = "sc-cart.html";
 };
 
+const renderOrderStepper = (container, status) => {
+    if (!container) return;
+    
+    const s = String(status || "").toLowerCase();
+    if (s.includes("cancel") || s.includes("void")) {
+        container.innerHTML = `<div class="sc-cancelled-banner">Order Cancelled</div>`;
+        return;
+    }
+
+    const steps = ["Pending", "Processing", "Shipped", "Delivered"];
+    let currentIndex = 0;
+    
+    if (s.includes("process") || s.includes("approv")) currentIndex = 1;
+    else if (s.includes("ship") || s.includes("transit") || s.includes("way")) currentIndex = 2;
+    else if (s.includes("deliver") || s.includes("complet") || s.includes("done")) currentIndex = 3;
+
+    container.innerHTML = steps.map((label, index) => {
+        let className = "sc-step";
+        let content = index + 1;
+        
+        if (index < currentIndex) {
+            className += " is-completed";
+            content = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+        } else if (index === currentIndex) {
+            className += " is-active";
+        }
+
+        return `
+            <div class="${className}">
+                <div class="sc-step-circle">${content}</div>
+                <span class="sc-step-label">${label}</span>
+            </div>
+        `;
+    }).join("");
+};
+
 const openDetailsModal = ({ orderId, date, status, items, total }) => {
     buildDetailsModal();
     if (!detailsModal.modal || !detailsModal.list) return;
@@ -155,6 +194,7 @@ const openDetailsModal = ({ orderId, date, status, items, total }) => {
     detailsModal.title.textContent = `Order #${orderId}`;
     detailsModal.meta.textContent = `${date} • ${status}`;
     currentOrderItems = items;
+    renderOrderStepper(detailsModal.stepper, status);
 
     detailsModal.list.innerHTML = items.map((item) => {
         const code = String(item.item_code || "").trim();
@@ -230,6 +270,11 @@ const loadOrders = async () => {
         return;
     }
 
+    const startDateEl = document.getElementById("startDate");
+    const endDateEl = document.getElementById("endDate");
+    const startVal = startDateEl?.value;
+    const endVal = endDateEl?.value;
+
     if (typeof supabaseClient === "undefined") {
         tableBody.innerHTML =
             '<tr><td colspan="4" style="text-align:center; padding: 2rem;">Connect Supabase to view orders.</td></tr>';
@@ -239,11 +284,24 @@ const loadOrders = async () => {
     // Show a loading state
     tableBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 2rem;">Loading orders...</td></tr>';
 
-    const { data: orders, error } = await supabaseClient
+    let query = supabaseClient
         .from("sc_orders")
         .select("id, created_at, order_total, status")
-        .eq("store_id", user.store_id)
-        .order("created_at", { ascending: false });
+        .eq("store_id", user.store_id);
+
+    if (startVal) {
+        query = query.gte("created_at", startVal);
+    }
+    if (endVal) {
+        // Append time to encompass the full end day
+        const eDate = new Date(endVal);
+        eDate.setHours(23, 59, 59, 999);
+        query = query.lte("created_at", eDate.toISOString());
+    }
+
+    query = query.order("created_at", { ascending: false });
+
+    const { data: orders, error } = await query;
 
     if (error) {
         console.error("Error fetching orders:", error.message);
@@ -291,4 +349,16 @@ const loadOrders = async () => {
     });
 };
 
-document.addEventListener("DOMContentLoaded", loadOrders);
+document.addEventListener("DOMContentLoaded", () => {
+    loadOrders();
+
+    const filterBtn = document.getElementById("filterOrdersBtn");
+    const resetBtn = document.getElementById("resetOrdersBtn");
+
+    if (filterBtn) filterBtn.addEventListener("click", loadOrders);
+    if (resetBtn) resetBtn.addEventListener("click", () => {
+        document.getElementById("startDate").value = "";
+        document.getElementById("endDate").value = "";
+        loadOrders();
+    });
+});

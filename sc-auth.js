@@ -163,13 +163,43 @@ const initScAuth = () => {
     });
   }
 
+  const guestLoginBtn = document.getElementById("guestLoginBtn");
+  if (guestLoginBtn) {
+    guestLoginBtn.addEventListener("click", () => {
+      const guestUser = {
+        storeName: "Guest Viewer",
+        isGuest: true
+      };
+      setStored("scUser", guestUser);
+      setStored("scSession", { email: "guest@preview", loggedAt: new Date().toISOString() });
+      window.location.href = "sc-products.html";
+    });
+  }
+
   const registerForm = document.getElementById("scRegisterForm");
   const scUser = getScUser();
   const scSession = getScSession();
   const isLoggedIn = Boolean(scUser || scSession);
-  const isRegisterView = Boolean(registerForm && !isLoggedIn);
-  const isViewOnly = Boolean(registerForm && scUser);
-  if (registerForm && isLoggedIn && !scUser) {
+  const isGuest = scUser?.isGuest === true;
+
+  // Treat guests as "register view" so they can fill out the form
+  const isRegisterView = Boolean(registerForm && (!isLoggedIn || isGuest));
+  // Guests are not "view only" (which is for existing stores viewing profile)
+  const isViewOnly = Boolean(registerForm && scUser && !isGuest);
+
+  if (isRegisterView) {
+    const nav = document.querySelector(".sc-products-nav");
+    if (nav) {
+      // If Guest, allow Products link. If completely anonymous, hide everything.
+      const selector = isGuest 
+        ? 'a[href="sc-dashboard.html"], a[href="sc-cart.html"], a[href="sc-orders.html"]' 
+        : 'a[href="sc-dashboard.html"], a[href="sc-products.html"], a[href="sc-cart.html"], a[href="sc-orders.html"], a[data-logout]';
+      const links = nav.querySelectorAll(selector);
+      links.forEach((el) => (el.style.display = "none"));
+    }
+  }
+
+  if (registerForm && isLoggedIn && !scUser && !isGuest) {
     window.location.href = "index.html";
     return;
   }
@@ -205,7 +235,8 @@ const initScAuth = () => {
       "personnel",
       "creditAmount",
       "terms",
-      "email"
+      "email",
+      "password"
     ];
     fieldIds.forEach((id) => {
       const el = document.getElementById(id);
@@ -217,6 +248,8 @@ const initScAuth = () => {
       }
     });
   };
+
+  let approvers = [];
 
   const updateHeaderStoreName = (name) => {
     const headerName = document.getElementById("scHeaderStoreName");
@@ -270,7 +303,7 @@ const initScAuth = () => {
     let activeUser = scUser || {};
     const storeId = String(activeUser?.store_id || activeUser?.storeId || "").trim();
     const supabaseReady = typeof supabaseClient !== "undefined" && Boolean(storeId);
-    let approvers = Array.isArray(activeUser.approvers) ? activeUser.approvers : [];
+    approvers = Array.isArray(activeUser.approvers) ? activeUser.approvers : [];
 
     const normalizeApprover = (entry) => ({
       id: entry?.id || entry?.approver_id || null,
@@ -651,12 +684,17 @@ const initScAuth = () => {
           full_name: fullName,
           designation,
           username,
-          password_hash: ""
+          password_hash: password
         };
 
         if (editingIndex === null && !password) {
           alert("Please enter a password for the new approver.");
           return;
+        }
+
+        // If editing and password field is empty, preserve the existing password
+        if (editingIndex !== null && !password && approvers[editingIndex]) {
+          nextApprover.password_hash = approvers[editingIndex].password_hash;
         }
 
         if (isViewOnly && supabaseReady) {
@@ -748,6 +786,31 @@ const initScAuth = () => {
     if (isRegisterView) {
       initApprovers();
     }
+
+    const backToLoginBtn = document.getElementById("backToLoginBtn");
+    if (backToLoginBtn) {
+      backToLoginBtn.addEventListener("click", () => {
+        let isDirty = false;
+        const inputs = registerForm.querySelectorAll("input, select");
+        for (const input of inputs) {
+          if (input.type !== "hidden" && input.type !== "submit" && input.type !== "button") {
+            if (input.value && input.value.trim() !== "") {
+              isDirty = true;
+              break;
+            }
+          }
+        }
+        if (!isDirty && approvers.length > 0) isDirty = true;
+
+        if (isDirty) {
+          if (confirm("You have unsaved changes. Are you sure you want to discard them and go back to login?")) {
+            window.location.href = "index.html";
+          }
+        } else {
+          window.location.href = "index.html";
+        }
+      });
+    }
   }
 
   if (registerForm && isRegisterView) {
@@ -838,13 +901,23 @@ const initScAuth = () => {
 
         const storeId = String(userRow.store_id || userRow.storeId || "").trim();
         if (registrationTimeApprovers && registrationTimeApprovers.length && storeId) {
-          const { error: approverError } = await supabaseClient.rpc("register_sc_approvers", {
-            p_store_id: storeId,
-            p_approvers: registrationTimeApprovers
-          });
-          if (approverError) {
-            console.warn("Unable to save approvers", approverError);
-            alert(`Registration saved, but approvers were not saved: ${approverError.message || "Unknown error"}`);
+          // Save approvers one by one using sc_upsert_approver
+          const approverPromises = registrationTimeApprovers.map((approver) =>
+            supabaseClient.rpc("sc_upsert_approver", {
+              p_store_id: storeId,
+              p_approver_id: null,
+              p_full_name: approver.full_name,
+              p_designation: approver.designation,
+              p_username: approver.username,
+              p_password: approver.password_hash
+            })
+          );
+
+          const results = await Promise.all(approverPromises);
+          const failed = results.find((r) => r.error);
+          if (failed) {
+            console.warn("Unable to save some approvers", failed.error);
+            alert("Registration successful, but some approvers could not be saved.");
           }
         }
 
